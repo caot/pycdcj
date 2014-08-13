@@ -15,17 +15,17 @@ class PycString extends PycObject {
     super(type);
   }
 
-  int length() {
+  public int length() {
     return m_length;
   }
 
-  String value() {
+  public String value() {
     if (m_value == null)
       return "";
     return new String(m_value);
   }
 
-  void load(PycData stream, PycModule mod) throws IOException {
+  public void load(PycData stream, PycModule mod) throws IOException {
     if (m_value != null)
       m_value = null;
 
@@ -54,7 +54,7 @@ class PycString extends PycObject {
     }
   }
 
-  boolean isEqual(PycObject obj) {
+  public boolean isEqual(PycObject obj) {
     if (type() != obj.type())
       return false;
 
@@ -62,8 +62,8 @@ class PycString extends PycObject {
     return this.isEqual(new String(strObj.m_value));
   }
 
-  boolean isEqual(String str) {
-    return m_value.equals(str);
+  public boolean isEqual(String str) {
+    return new String(m_value).equals(str);
   }
 
   public static void OutputString(PycString str, char prefix) {
@@ -71,11 +71,12 @@ class PycString extends PycObject {
   }
 
   static PrintStream pyc_output = PycData.pyc_output;
+
   public static void OutputString(PycString str, char prefix, boolean triple) {
     OutputString(str, prefix, triple, pyc_output);
   }
-  
-      
+
+
 
   public static void OutputString(PycString str, char prefix, boolean triple, PrintStream F) {
     if (prefix != 0)

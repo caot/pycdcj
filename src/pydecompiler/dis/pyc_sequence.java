@@ -6,7 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-class PycSequence extends PycObject {
+abstract class PycSequence extends PycObject {
   PycSequence(int type) {
     super(type);
   }
@@ -15,9 +15,11 @@ class PycSequence extends PycObject {
     return m_size;
   }
 
-  PycObject get(int idx) {
-    return null;
-  }
+  abstract PycObject get(int idx);
+
+  // {
+  // return null;
+  // }
 
   int m_size;
 }

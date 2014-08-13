@@ -1,76 +1,40 @@
 package pydecompiler.util;
 
-import pydecompiler.dis.ASTNode;
+import java.util.ArrayDeque;
 
-public class FastStack {
+public class FastStack<E> extends ArrayDeque<E> {
+  public FastStack() {
+  }
+
   public FastStack(int size) {
-    m_size = size;
-    
-    m_ptr = -1;
-    m_stack = new ASTNode[m_size];
+    super(size);
   }
 
-  public FastStack(FastStack copy) {
-    m_size = copy.m_size;
-    m_ptr = copy.m_ptr;
-    
-    m_stack = new ASTNode[m_size];
-
-    for (int i = 0; i <= m_ptr; i++)
-      m_stack[i] = copy.m_stack[i];
-  }
-
-//  public FastStack operator(FastStack copy) {
-//    replace(copy);
-//    return this;
-//  }
-
-  public void push(ASTNode node) {
-    if (m_size == m_ptr + 1)
-      grow(1);
-
-    m_stack[++m_ptr] = node;
+  public void push(E node) {
+    super.push(node);
     count++;
   }
 
-  public void pop() {
-    if (m_ptr > -1)
-      m_stack[m_ptr--] = ASTNode.Node_NULL;
+  public int size() {
+    return count;
+  }
+
+  public E pop() {
     count--;
+    return super.pop();
   }
 
-  public ASTNode peek() {
-    if (m_ptr > -1) {
-      if (m_stack[m_ptr] == null)
-        System.err.println("m_ptr : " +  m_ptr + ", " + m_stack[m_ptr]);
-      return m_stack[m_ptr];
-    } else
-      return ASTNode.Node_NULL;
+  public boolean empty() {
+    return this.isEmpty();
   }
 
-  public void replace(FastStack copy) {
-    if (copy == this)
-      return;
-    m_stack = null;
-
-    m_size = copy.m_size;
-    m_ptr = copy.m_ptr;
-    m_stack = new ASTNode[m_size];
-    for (int i = 0; i <= m_ptr; i++)
-      m_stack[i] = copy.m_stack[i];
+  public E top() {
+    return peek();
   }
 
-  public void grow(int inc) {
-    m_size += inc;
-    ASTNode[] tmp = new ASTNode[m_size];
-
-    for (int i = 0; i <= m_ptr; i++)
-      tmp[i] = m_stack[i];
-
-    m_stack = null;
-    m_stack = tmp;
+  public E peek() {
+    return super.peek();
   }
 
-  private ASTNode[] m_stack;
-  private int m_size, m_ptr, count;
+  private int count;
 }
