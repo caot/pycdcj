@@ -2,7 +2,9 @@ package pydecompiler.util;
 
 import java.util.ArrayDeque;
 
-public class FastStack<E> extends ArrayDeque<E> {
+import pydecompiler.dis.ASTNode;
+
+public class FastStack extends ArrayDeque {
   public FastStack() {
   }
 
@@ -10,7 +12,9 @@ public class FastStack<E> extends ArrayDeque<E> {
     super(size);
   }
 
-  public void push(E node) {
+  public void push(ASTNode node) {
+    if (node == null)
+      node = new ASTNode();
     super.push(node);
     count++;
   }
@@ -19,8 +23,10 @@ public class FastStack<E> extends ArrayDeque<E> {
     return count;
   }
 
-  public E pop() {
+  public Object pop() {
     count--;
+    if (super.isEmpty())
+      return new ASTNode();
     return super.pop();
   }
 
@@ -28,12 +34,14 @@ public class FastStack<E> extends ArrayDeque<E> {
     return this.isEmpty();
   }
 
-  public E top() {
-    return peek();
+  public ASTNode top() {
+    if (super.isEmpty())
+      return new ASTNode();
+    return (ASTNode) super.peek();
   }
 
-  public E peek() {
-    return super.peek();
+  public ASTNode peek() {
+    return (ASTNode) super.peek();
   }
 
   private int count;

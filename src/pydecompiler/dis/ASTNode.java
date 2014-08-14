@@ -651,7 +651,7 @@ class ASTBlock extends ASTNode {
   }
 
   public boolean inited() {
-    return m_inited != BlkType.BLK_MAIN;
+    return m_inited != Boolean.FALSE;
   }
 
   public void init() {

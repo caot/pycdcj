@@ -28,8 +28,16 @@ class Entry<K, V> implements Map.Entry<K, V> {
     hash = h;
   }
 
+  public final K first() {
+    return key;
+  }
+
   public final K getKey() {
     return key;
+  }
+
+  public final V second() {
+    return value;
   }
 
   public final V getValue() {

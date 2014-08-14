@@ -36,8 +36,8 @@ public class ASTree {
   static ASTNode BuildFromCode(PycCode code, PycModule mod) throws IOException {
     PycBuffer source = new PycBuffer(code.code().value().getBytes(), code.code().length());
 
-    FastStack<ASTNode> stack = new FastStack<ASTNode>((mod.majorVer() == 1) ? 20 : code.stackSize());
-    FastStack<FastStack<ASTNode>> stack_hist = new FastStack<FastStack<ASTNode>>();
+    FastStack stack = new FastStack((mod.majorVer() == 1) ? 20 : code.stackSize());
+    Stack<FastStack> stack_hist = new Stack<FastStack>();
 
     Stack<ASTBlock> blocks = new Stack<ASTBlock>();
     ASTBlock defblock = new ASTBlock(ASTBlock.BlkType.BLK_MAIN);
@@ -52,7 +52,7 @@ public class ASTree {
     int unpack = 0;
     boolean else_pop = false;
     boolean need_try = false;
-    boolean is_disasm = true;
+    boolean is_disasm = false;
 
     while (!source.atEof()) {
       if (BLOCK_DEBUG || STACK_DEBUG) {
@@ -453,8 +453,9 @@ public class ASTree {
 
         ASTNode call = new ASTCall(func, pparamList, kwparamList);
         ((ASTCall) call).setKW(kw);
-        if (opcode == Pyc.Opcode.CALL_FUNCTION_VAR_KW_A)
+        if (opcode == Pyc.Opcode.CALL_FUNCTION_VAR_KW_A) {
           ((ASTCall) call).setVar(var);
+        }
         stack.push(call);
       }
         break;
@@ -465,9 +466,7 @@ public class ASTree {
         ASTNode right = stack.top();
         stack.pop();
         ASTNode left = stack.top();
-        // stack.pop();
-        // stack.push(left);
-        stack.push(right);
+        stack.pop();
         stack.push(new ASTCompare(left, right, operand));
       }
         break;
@@ -869,7 +868,8 @@ public class ASTree {
             stack_hist.pop();
           }
           ifblk = new ASTCondBlock(ASTBlock.BlkType.BLK_EXCEPT, offs, ((ASTCompare) cond).right(), false);
-        } else if (curblock.blktype() == ASTBlock.BlkType.BLK_ELSE 
+        } else if (curblock.blktype() == ASTBlock.BlkType.BLK_ELSE
+            && !blocks.empty()
             && curblock.size() == 0) {
           /* Collapse into elif statement */
           blocks.pop();
@@ -919,10 +919,10 @@ public class ASTree {
           ifblk = new ASTCondBlock(ASTBlock.BlkType.BLK_IF, offs, cond, neg);
         }
 
-        if (popped != ASTCondBlock.InitCond.UNINITED)
+        if (popped.ordinal() != 0)
           ifblk.init(popped);
 
-        stack.push(ifblk);
+        // stack.push(ifblk);
         blocks.push(ifblk);
         curblock = blocks.top();
       }
@@ -948,8 +948,10 @@ public class ASTree {
             ; // pass
           } else {
             if (curblock.blktype() == ASTBlock.BlkType.BLK_ELSE) {
-              stack = stack_hist.top();
-              stack_hist.pop();
+              if (!stack_hist.empty()) {
+                stack = stack_hist.top();
+                stack_hist.pop();
+              }
 
               blocks.pop();
               blocks.top().append((ASTNode) curblock);
@@ -1184,7 +1186,7 @@ public class ASTree {
         break;
       case LOAD_ATTR_A: {
         ASTNode name = stack.top();
-        if (name.type() != ASTNode.Type.NODE_IMPORT) {
+        if (name != null && name.type() != ASTNode.Type.NODE_IMPORT) {
           stack.pop();
           stack.push(new ASTBinary(name, new ASTName(code.getName(operand)), ASTBinary.BinOp.BIN_ATTR));
         }
@@ -1199,10 +1201,10 @@ public class ASTree {
       case LOAD_CONST_A: {
         ASTObject t_ob = new ASTObject(code.getConst(operand));
 
-        if (t_ob.object().type() == PycObject.Type.TYPE_TUPLE 
-            && ((PycTuple) t_ob.object()).values().size() > 0) {
+        if (t_ob.object().type() == PycObject.Type.TYPE_TUPLE &&
+            ((PycTuple) t_ob.object()).values().size() != 0) {
           LinkedList<ASTNode> values = new LinkedList<ASTNode>();
-          // values.add(t_ob);
+          values.add(t_ob); //////////??????????
           stack.push(new ASTTuple(values));
         } else if (t_ob.object().type() == PycObject.Type.TYPE_NONE) {
           stack.push(ASTNode.Node_NULL);
@@ -1381,13 +1383,13 @@ public class ASTree {
             ((ASTCondBlock) curblock).init();
           }
           break;
-        } else if (curblock.blktype() == ASTBlock.BlkType.BLK_CONTAINER ||
-                   curblock.blktype() == ASTBlock.BlkType.BLK_EXCEPT
-            ) {
-          break;
+          // } else if (curblock.blktype() == ASTBlock.BlkType.BLK_CONTAINER ||
+          // curblock.blktype() == ASTBlock.BlkType.BLK_EXCEPT
+          // ) {
+          // break;
         } else if (value.type() == ASTNode.Type.NODE_INVALID
                 || value.type() == ASTNode.Type.NODE_BINARY
-                || value.type() == ASTNode.Type.NODE_NAME
+        // || value.type() == ASTNode.Type.NODE_NAME
                 || value.type() == ASTNode.Type.NODE_COMPARE
                     && ((ASTCompare)value).op() == ASTCompare.CompareOp.CMP_EXCEPTION
             ) {
@@ -1436,9 +1438,9 @@ public class ASTree {
           paramList.addFirst(stack.top());
           stack.pop();
         }
-        stack.push(new ASTRaise(paramList));
-        curblock.append(stack.peek());
-//        curblock.append(new ASTRaise(paramList));
+        // stack.push(new ASTRaise(paramList));
+        // curblock.append(stack.peek());
+        curblock.append(new ASTRaise(paramList));
 
         if ((curblock.blktype() == ASTBlock.BlkType.BLK_IF 
             || curblock.blktype() == ASTBlock.BlkType.BLK_ELSE) 
@@ -1746,11 +1748,11 @@ public class ASTree {
               && !curblock.inited()) {
             ((ASTIterBlock) curblock).setIndex(name);
           } else if (curblock.blktype() == ASTBlock.BlkType.BLK_WITH
-              && !curblock.inited()) {
+              && curblock.inited()) {
             ((ASTWithBlock) curblock).setExpr(value);
             ((ASTWithBlock) curblock).setVar(name);
-          } else if (value.type() == ASTNode.Type.NODE_IMPORT) {
-            ASTImport import_ = (ASTImport) value;
+          } else if (stack.top() != null && stack.top().type() == ASTNode.Type.NODE_IMPORT) {
+            ASTImport import_ = (ASTImport) stack.top();
             import_.add_store(new ASTStore(value, name));
           } else {
             curblock.append(new ASTStore(value, name));
@@ -1805,7 +1807,7 @@ public class ASTree {
       }
         break;
       case STORE_NAME_A: {
-        if (unpack > 0) {
+        if (unpack != 0) {
           ASTNode name = new ASTName(code.getName(operand));
 
           ASTNode tup = stack.top();
@@ -1851,8 +1853,8 @@ public class ASTree {
           if (curblock.blktype() == ASTBlock.BlkType.BLK_FOR 
               && !curblock.inited()) {
             ((ASTIterBlock) curblock).setIndex(name);
-          } else if (value.type() == ASTNode.Type.NODE_IMPORT) {
-            ASTImport import_ = (ASTImport) value;
+          } else if (stack.top().type() == ASTNode.Type.NODE_IMPORT) {
+            ASTImport import_ = (ASTImport) stack.top();
             
             import_.add_store(new ASTStore(value, name));
             // curblock.append(import_);
@@ -2008,7 +2010,7 @@ public class ASTree {
       case UNPACK_SEQUENCE_A: {
         unpack = operand;
 
-        List<ASTNode> vals = new LinkedList<ASTNode>(); // /////////????????????????????
+        List<ASTNode> vals = new LinkedList<ASTNode>();
 
         stack.push(new ASTTuple(vals));
       }
@@ -2019,6 +2021,11 @@ public class ASTree {
         curblock.append(new ASTReturn(value, ASTReturn.RetType.YIELD));
       }
         break;
+      case STOP_CODE: {
+        // Pyc.Opcode.STOP_CODE
+        cleanBuild = false;
+        return new ASTNodeList(defblock.nodes());
+      }
       default:
         Logger.log("Unsupported opcode: " + Pyc.OpcodeName(opcode));
         cleanBuild = false;
@@ -2031,33 +2038,35 @@ public class ASTree {
           && (curblock.end() == pos);
 
 
-      Logger.log("    blocks size: ", blocks.size(), ", stack size: ", stack.size(), ", stack_hist size: ", stack_hist.size(), ", stack peek", stack != null && stack.size() > 0 ? stack.peek() : " 000 ");
+      // Logger.log("    blocks size: ", blocks.size(), ", stack size: ",
+      // stack.size(), ", stack_hist size: ", stack_hist.size(), ", stack peek",
+      // stack != null && stack.size() > 0 ? stack.peek() : " 000 ");
     }
 
     if (stack.size() > 0) {
-       Logger.log("Warning: Stack is not empty!");
+      // Logger.log("Warning: Stack is not empty!");
 
       while (stack.size() > 0) {
-        Logger.log("    " + stack.top());
+        // Logger.log("    " + stack.top());
         stack.pop();
       }
     }
 
     if (stack_hist.size() > 0) {
-      Logger.log("Warning: Stack history is not empty!");
+      // Logger.log("Warning: Stack history is not empty!");
 
       while (stack_hist.size() > 0) {
-        Logger.log("    " + stack_hist.top());
+        // Logger.log("    " + stack_hist.top());
         stack_hist.pop();
       }
     }
 
     if (blocks.size() > 1) {
-      Logger.log("Warning: block stack is not empty!");
+      // Logger.log("Warning: block stack is not empty!");
 
       while (blocks.size() > 1) {
         ASTBlock tmp = blocks.top();
-        Logger.log("    " + tmp);
+        // Logger.log("    " + tmp);
         blocks.pop();
 
         blocks.top().append(tmp);
@@ -2075,8 +2084,7 @@ public class ASTree {
        Else we'd have expressions like (((a + b) + c) + d) when therefore
        equivalent, a + b + c + d would suffice. */
 
-    if (parent.type() == ASTNode.Type.NODE_UNARY 
-        && ((ASTUnary) parent).op() == ASTUnary.UnOp.UN_NOT)
+    if (parent.type() == ASTNode.Type.NODE_UNARY && ((ASTUnary) parent).op() == ASTUnary.UnOp.UN_NOT)
       return 1; // Always parenthesize not(x)
     if (child.type() == ASTNode.Type.NODE_BINARY) {
       ASTBinary binChild = (ASTBinary) child;
@@ -2187,7 +2195,7 @@ public class ASTree {
   }
 
   static void print_src(ASTNode node, PycModule mod) throws IOException {
-    if (node == ASTNode.Node_NULL) {
+    if (node == null || node == ASTNode.Node_NULL) {
       pyc_output.printf("None");
       cleanBuild = true;
       return;
@@ -2219,26 +2227,26 @@ public class ASTree {
         print_src(p.next(), mod);
         first = false;
       }
-      for (Iterator<Pair<ASTNode, ASTNode>> p = call.kwparams().iterator(); p.hasNext();) {
+      for (Iterator<Pair<ASTNode, ASTNode>> iter = call.kwparams().iterator(); iter.hasNext();) {
         if (!first)
           pyc_output.printf(", ");
-        Pair<ASTNode, ASTNode> next = p.next();
-        ASTNode A = next.getKey();
-        if (A instanceof ASTName)
-          pyc_output.printf("%s = ", ((ASTName) A).name().value());
+        Pair<ASTNode, ASTNode> p = iter.next();
+        ASTNode k = p.getKey();
+        if (k instanceof ASTName)
+          pyc_output.printf("%s = ", k);
         else {
-          PycObject obj = ((ASTObject) A).object();
+          PycObject obj = ((ASTObject) k).object();
           if (obj instanceof PycString)
             pyc_output.printf("%s = ", ((PycString) obj).value());
           else
-            pyc_output.printf("%s = ", ((ASTObject) A).object());
+            pyc_output.printf("%s = ", ((ASTObject) k).object());
         }
 
-        ASTNode B = next.getValue();
-        if (B instanceof ASTName)
-          print_src((ASTName) B, mod);
+        ASTNode v = p.getValue();
+        if (v instanceof ASTName)
+          print_src((ASTName) v, mod);
         else
-          print_src(B, mod);
+          print_src(v, mod);
 
         first = false;
       }
@@ -2322,17 +2330,15 @@ public class ASTree {
       pyc_output.printf("{");
       boolean first = true;
       cur_indent++;
-      for (Iterator<Pair<ASTNode, ASTNode>> b = values.iterator(); b.hasNext();) {
-        if (first)
-          pyc_output.printf("\n");
-        else
-          pyc_output.printf(",\n");
+      for (Iterator<Pair<ASTNode, ASTNode>> iter = values.iterator(); iter.hasNext();) {
+        if (!first)
+          pyc_output.printf(", ");
 
-        Pair<ASTNode, ASTNode> next = b.next();
+        Pair<ASTNode, ASTNode> b = iter.next();
         start_line(cur_indent);
-        print_src(next.getKey(), mod);
+        print_src(b.first(), mod);
         pyc_output.printf(": ");
-        print_src(next.getValue(), mod);
+        print_src(b.second(), mod);
         first = false;
       }
       cur_indent--;
@@ -2355,7 +2361,8 @@ public class ASTree {
       break;
     case NODE_BLOCK: {
       ASTBlock blk = (ASTBlock) node;
-      if (blk.blktype() == ASTBlock.BlkType.BLK_ELSE && ((ASTBlock) node).size() == 0)
+      if (blk.blktype() == ASTBlock.BlkType.BLK_ELSE 
+          && ((ASTBlock) node).size() == 0)
         break;
 
       if (blk.blktype() == ASTBlock.BlkType.BLK_CONTAINER) {
@@ -2382,8 +2389,8 @@ public class ASTree {
         print_src(((ASTIterBlock) blk).index(), mod);
         pyc_output.printf(" in ");
         print_src(((ASTIterBlock) blk).iter(), mod);
-      } else if (blk.blktype() == ASTBlock.BlkType.BLK_EXCEPT 
-          && ((ASTCondBlock) blk).cond() != ASTNode.Node_NULL) {
+      } else if (blk.blktype() == ASTBlock.BlkType.BLK_EXCEPT && 
+           ((ASTCondBlock) blk).cond() != ASTNode.Node_NULL) {
         pyc_output.printf(" ");
         print_src(((ASTCondBlock) blk).cond(), mod);
       } else if (blk.blktype() == ASTBlock.BlkType.BLK_WITH) {
@@ -2494,7 +2501,7 @@ public class ASTree {
       break;
     case NODE_IMPORT: {
       ASTImport import_ = (ASTImport) node;
-      if (import_.stores().isEmpty()) {
+      if (!import_.stores().isEmpty()) {
         List<ASTStore> stores = import_.stores();
 
         pyc_output.printf("from ");
@@ -2504,31 +2511,31 @@ public class ASTree {
           print_src(import_.name(), mod);
         pyc_output.printf(" import ");
 
-        Iterator<ASTStore> ii = stores.iterator();
+        Iterator<ASTStore> iter = stores.iterator();
         if (stores.size() == 1) {
-          ASTStore next = ii.next();
-          print_src(next.src(), mod);
+          ASTStore ii = iter.next();
+          print_src(ii.src(), mod);
 
-          String s1 = ((ASTName) next.src()).name().value();
-          String s2 = ((ASTName) next.dest()).name().value();
+          String s1 = ((ASTName) ii.src()).name().value();
+          String s2 = ((ASTName) ii.dest()).name().value();
           if (!s1.equals(s2)) {
             pyc_output.printf(" as ");
-            print_src(next.dest(), mod);
+            print_src(ii.dest(), mod);
           }
         } else {
           boolean first = true;
-          for (; ii.hasNext();) {
-            ASTStore next = ii.next();
+          for (; iter.hasNext();) {
+            ASTStore ii = iter.next();
             if (!first)
               pyc_output.printf(", ");
-            print_src(next.src(), mod);
+            print_src(ii.src(), mod);
             first = false;
 
-            String s1 = ((ASTName) next.src()).name().value();
-            String s2 = ((ASTName) next.dest()).name().value();
+            String s1 = ((ASTName) ii.src()).name().value();
+            String s2 = ((ASTName) ii.dest()).name().value();
             if (!s1.equals(s2)) {
               pyc_output.printf(" as ");
-              print_src(next.dest(), mod);
+              print_src(ii.dest(), mod);
             }
           }
         }
@@ -2564,6 +2571,8 @@ public class ASTree {
     case NODE_STORE: {
       ASTNode src = ((ASTStore) node).src();
       ASTNode dest = ((ASTStore) node).dest();
+      if (src == null)
+        break;
       if (src.type() == ASTNode.Type.NODE_FUNCTION) {
         ASTNode code = ((ASTFunction) src).code();
         PycCode code_src = (PycCode) ((ASTObject) code).object();
@@ -2596,18 +2605,18 @@ public class ASTree {
           }
           first = false;
         }
-        if (code_src.flags() == PycCode.CodeFlags.CO_VARARGS) {
+        if ((code_src.flags() & PycCode.CodeFlags.CO_VARARGS) != 0) {
           if (!first)
             pyc_output.printf(", ");
           pyc_output.printf("*%s", code_src.getVarName(code_src.argCount()).value());
           first = false;
         }
-        if (code_src.flags() == PycCode.CodeFlags.CO_VARKEYWORDS) {
+        if ((code_src.flags() & PycCode.CodeFlags.CO_VARKEYWORDS) != 0) {
           if (!first)
             pyc_output.printf(", ");
 
           int idx = code_src.argCount();
-          if (code_src.flags() == PycCode.CodeFlags.CO_VARARGS) {
+          if ((code_src.flags() & PycCode.CodeFlags.CO_VARARGS) != 0) {
             idx++;
           }
           pyc_output.printf("**%s", code_src.getVarName(idx).value());
@@ -2633,13 +2642,15 @@ public class ASTree {
         pyc_output.printf("class ");
         print_src(dest, mod);
 
-        // ASTTuple bases = (ASTTuple)((ASTClass)src).bases();
+//        ASTTuple bases = (ASTTuple) ((ASTClass) src).bases();
         List<ASTNode> values = new LinkedList<ASTNode>();
         ASTNode bases = ((ASTClass) src).bases();
-        Logger.log("\n    '''---->bases class name: " + bases.getClass().getName() + "'''\n");
+//         Logger.log("\n    '''---->bases class name: " +
+//         bases.getClass().getName() + "'''\n");
         if (bases instanceof ASTTuple)
           values = ((ASTTuple) bases).values();
-        else if (values.size() > 0) {
+        
+        if (values.size() > 0) {
           pyc_output.printf("(");
           boolean first = true;
           for (Iterator<ASTNode> b = values.iterator(); b.hasNext();) {
@@ -2659,24 +2670,29 @@ public class ASTree {
       } else if (src.type() == ASTNode.Type.NODE_IMPORT) {
         ASTImport import_ = (ASTImport) src;
         if (import_.fromlist() != ASTNode.Node_NULL) {
-          PycObject fromlist = ((ASTObject) import_.fromlist()).object();
-          if (fromlist != PycObject.Pyc_None) {
-            pyc_output.printf("from ");
-            if (import_.name().type() == ASTNode.Type.NODE_IMPORT)
-              print_src(((ASTImport) import_.name()).name(), mod);
-            else
-              print_src(import_.name(), mod);
-            pyc_output.printf(" import ");
-            if (fromlist.type() == PycObject.Type.TYPE_TUPLE) {
-              boolean first = true;
-              for (Iterator<PycObject> ii = ((PycTuple) fromlist).values().iterator(); ii.hasNext();) {
-                if (!first)
-                  pyc_output.printf(", ");
-                pyc_output.printf("%s", ((PycString) ii.next()).value());
-                first = false;
-              }
-            } else {
+          pyc_output.printf("from ");
+          if (import_.name().type() == ASTNode.Type.NODE_IMPORT)
+            print_src(((ASTImport) import_.name()).name(), mod);
+          else
+            print_src(import_.name(), mod);
+          pyc_output.printf(" import ");
+
+          ASTNode astnode = import_.fromlist();
+          if (astnode instanceof ASTObject) {
+            PycObject fromlist = ((ASTObject) astnode).object();
+            if (fromlist.type() == PycObject.Type.TYPE_STRING) {
               pyc_output.printf("%s", ((PycString) fromlist).value());
+            }
+          } else if (astnode instanceof ASTTuple) {
+            ASTTuple fromlist = (ASTTuple)astnode;
+            boolean first = true;
+            for (Iterator<ASTNode> ii = fromlist.values().iterator(); ii.hasNext();) {
+              PycObject pycobj = ((ASTObject) ii.next()).object();
+              if (!first)
+                pyc_output.printf(", ");
+              for (PycObject p : ((PycTuple) pycobj).values())
+                pyc_output.printf("%s", ((PycString) p).value());
+              first = false;
             }
           } else {
             pyc_output.printf("import ");
@@ -2692,16 +2708,20 @@ public class ASTree {
           }
         }
       } else {
-        if (src.type() == ASTNode.Type.NODE_BINARY && ((ASTBinary) src).is_inplace()) {
+        if (src.type() == ASTNode.Type.NODE_BINARY && 
+            ((ASTBinary) src).is_inplace()) {
           print_src(src, mod);
           break;
         }
 
-        if (dest.type() == ASTNode.Type.NODE_NAME && ((ASTName) dest).name().isEqual("__doc__")) {
+        if (dest.type() == ASTNode.Type.NODE_NAME && 
+            ((ASTName) dest).name().isEqual("__doc__")) {
           if (src.type() == ASTNode.Type.NODE_OBJECT) {
             PycObject obj = ((ASTObject) src).object();
-            if (// obj.type() == PycObject.Type.TYPE_STRING ||
-            obj.type() == PycObject.Type.TYPE_INTERNED || obj.type() == PycObject.Type.TYPE_STRINGREF)
+            if (
+                //obj.type() == PycObject.Type.TYPE_STRING ||
+                obj.type() == PycObject.Type.TYPE_INTERNED ||
+                obj.type() == PycObject.Type.TYPE_STRINGREF)
               PycString.OutputString((PycString) obj, (mod.majorVer() == 3) ? 'b' : 0, true);
             else if (obj.type() == PycObject.Type.TYPE_UNICODE)
               PycString.OutputString((PycString) obj, (mod.majorVer() == 3) ? 0 : 'u', true);
@@ -2748,8 +2768,8 @@ public class ASTree {
     }
       break;
     default:
-      pyc_output.printf("<NODE:%d>", node.type());
-      System.err.printf("Unsupported Node type: %d\n", node.type());
+      pyc_output.printf("<NODE:%s>", node.type());
+      //System.err.printf("Unsupported Node type: %s\n", node.type());
       cleanBuild = false;
       return;
     }
@@ -2768,10 +2788,12 @@ public class ASTree {
       // if the cleaned up code is isEmpty
       if (clean.nodes().getFirst().type() == ASTNode.Type.NODE_STORE) {
         ASTStore store = (ASTStore) clean.nodes().getFirst();
-        if (store.src().type() == ASTNode.Type.NODE_NAME && store.dest().type() == ASTNode.Type.NODE_NAME) {
+        if (store.src().type() == ASTNode.Type.NODE_NAME && 
+            store.dest().type() == ASTNode.Type.NODE_NAME) {
           ASTName src = ((ASTName) store.src());
           ASTName dest = ((ASTName) store.dest());
-          if (src.name().isEqual("__name__") && dest.name().isEqual("__module__")) {
+          if (src.name().isEqual("__name__") && 
+              dest.name().isEqual("__module__")) {
             // __module__ = __name__
             clean.removeFirst();
           }
@@ -2780,6 +2802,7 @@ public class ASTree {
       if (clean.nodes().getLast().type() == ASTNode.Type.NODE_RETURN) {
         ASTReturn ret = (ASTReturn) clean.nodes().getLast();
 
+        if (null != ret.value())
         if (ret.value() == ASTNode.Node_NULL || ret.value().type() == ASTNode.Type.NODE_LOCALS) {
           clean.removeLast(); // Always an extraneous return statement
         }

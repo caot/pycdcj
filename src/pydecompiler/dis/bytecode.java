@@ -11,6 +11,7 @@ import java.util.Set;
 import pydecompiler.dis.Pyc.Opcode;
 import pydecompiler.util.FastStack;
 import pydecompiler.util.Logger;
+import pydecompiler.util.Stack;
 
 
 class Pyc {
@@ -315,7 +316,7 @@ public class bytecode {
     }
   }
 
-  static void bc_print(PycCode code, PycModule mod, Opcode opcode, int pos, int operand, FastStack<ASTNode> stack, FastStack<FastStack<ASTNode>> stack_hist) {
+  static void bc_print(PycCode code, PycModule mod, Opcode opcode, int pos, int operand, FastStack stack, Stack stack_hist) {
     pyc_output.printf("%-24s", Pyc.OpcodeName(opcode));
 
     if (opcode.ordinal() >= Opcode.PYC_HAVE_ARG.ordinal()) {
@@ -343,7 +344,7 @@ public class bytecode {
   }
 
 
-  static Args bc_next(PycBuffer source, PycCode code, PycModule mod, Opcode opcode, int operand, int pos, boolean is_disasm, FastStack<ASTNode> stack, FastStack<FastStack<ASTNode>> stack_hist) throws IOException {
+  static Args bc_next(PycBuffer source, PycCode code, PycModule mod, Opcode opcode, int operand, int pos, boolean is_disasm, FastStack stack, Stack stack_hist) throws IOException {
     if (is_disasm)
       pyc_output.printf("%-7d ", pos); // Current bytecode position
 
@@ -380,22 +381,22 @@ public class bytecode {
     return new Args(source, code, mod, opcode, operand, pos);
   }
 
-  // static void bc_disasm(PycCode code, PycModule mod, int indent) throws
-  // IOException {
-  // PycBuffer source = new PycBuffer(code.code().value().getBytes(),
-  // code.code().length());
-  //
-  // Opcode opcode = null;
-  // int operand = 0;
-  // int pos = 0;
-  // while (!source.atEof()) {
-  // for (int i = 0; i < indent; i++)
-  // pyc_output.printf("    ");
-  //
-  // Args args = bc_next(source, code, mod, opcode, operand, pos, true);
-  // pos = args.pos;
-  // }
-  // }
+  static void bc_disasm(PycCode code, PycModule mod, int indent)
+      throws IOException {
+    PycBuffer source = new PycBuffer(code.code().value().getBytes(), code
+        .code().length());
+
+    Opcode opcode = null;
+    int operand = 0;
+    int pos = 0;
+    while (!source.atEof()) {
+      for (int i = 0; i < indent; i++)
+        pyc_output.printf("    ");
+
+      Args args = bc_next(source, code, mod, opcode, operand, pos, true, new FastStack(), new Stack());
+      pos = args.pos;
+    }
+  }
 
 }
 
