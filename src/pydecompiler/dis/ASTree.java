@@ -1863,19 +1863,7 @@ public class ASTree {
             ((ASTWithBlock) curblock).setExpr(value);
             ((ASTWithBlock) curblock).setVar(name);
           } else {
-            LinkedList<ASTNode> nodes = curblock.nodes();
-            if (nodes.size() > 0) {
-              ASTNode b = (ASTNode) nodes.getLast();
-
-              if (b.type() == ASTNode.Type.NODE_BLOCK) {
-                curblock.removeLast();
-              }
-            }
-
             curblock.append(new ASTStore(value, name));
-
-            if (value.type() == ASTNode.Type.NODE_INVALID)
-              break;
           }
         }
       }
