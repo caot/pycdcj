@@ -207,6 +207,17 @@ class Pyc {
 public class bytecode {
   static PrintStream pyc_output = PycData.pyc_output;
 
+  static String double2string(double d) {
+    StringBuilder s = new StringBuilder().append(d);
+    if (s.indexOf(".") >= 0) {
+      while (s.charAt(s.length() - 1) == '0')
+        s.deleteCharAt(s.length() - 1);
+      if (s.charAt(s.length() - 1) == '.')
+        s.append(0);
+    }
+    return s.toString();
+  }
+
   static void print_const(PycObject obj, PycModule mod) {
     switch (obj.type()) {
     case PycObject.Type.TYPE_STRING:
@@ -304,7 +315,7 @@ public class bytecode {
       pyc_output.printf("(%s+%sj)", ((PycComplex) obj).value(), ((PycComplex) obj).imag());
       break;
     case PycObject.Type.TYPE_BINARY_FLOAT:
-      pyc_output.printf("%g", ((PycCFloat) obj).value());
+      pyc_output.printf("%s", double2string(((PycCFloat) obj).value()));
       break;
     case PycObject.Type.TYPE_BINARY_COMPLEX:
       pyc_output.printf("(%g+%gj)", ((PycCComplex) obj).value(), ((PycCComplex) obj).imag());
