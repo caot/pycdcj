@@ -1,6 +1,8 @@
 package pydecompiler.dis;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -237,9 +239,17 @@ class PycCFloat extends PycObject {
   }
 
   void load(PycData stream, PycModule mod) throws IOException {
-    long i64 = stream.get64();
-    m_value = (double) i64;
+    //long i64 = stream.get64();
     // memcpy(&m_value, &i64, sizeof(Pyc_INT64));
+    
+    byte[] i64 = stream.get64a();
+    ByteBuffer buf = ByteBuffer.allocate(8).put(i64);
+    // Flips this buffer.  The limit is set to the current position and then
+    // the position is set to zero.
+    buf.flip();
+    /* Ensure endianness */
+    buf.order(buf.order() == ByteOrder.BIG_ENDIAN ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+    m_value = buf.getDouble();
   }
 
   double value() {

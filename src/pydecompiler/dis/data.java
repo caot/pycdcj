@@ -47,6 +47,14 @@ abstract class PycData implements PycDataI {
     result |= (getByte() & 0xFF) << 56;
     return result;
   }
+
+  byte[] get64a() throws IOException {
+    byte[] ba = new byte[8];
+    for (int i = 0; i < ba.length; i++)
+      ba[i] = (byte) getByte();
+
+    return ba;
+  }
 };
 
 class PycFile extends PycData {
