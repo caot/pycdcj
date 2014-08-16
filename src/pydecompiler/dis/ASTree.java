@@ -2198,6 +2198,14 @@ public class ASTree {
     }
   }
 
+  static void print_comma(int cur_indent, boolean isfirst, PrintStream pyc_output) {
+    if (isfirst)
+      pyc_output.printf("\n");
+    else
+      pyc_output.printf(",\n");
+    start_line(cur_indent);
+  }
+
   static void print_src(ASTNode node, PycModule mod) throws IOException {
     if (node == null || node == ASTNode.Node_NULL) {
       pyc_output.printf("None");
@@ -2302,8 +2310,7 @@ public class ASTree {
       boolean first = true;
       cur_indent++;
       for (Iterator<ASTNode> b = values.iterator(); b.hasNext();) {
-        if (!first)
-          pyc_output.printf(", ");
+        print_comma(cur_indent, first, pyc_output);
         print_src(b.next(), mod);
         first = false;
       }
@@ -2335,10 +2342,7 @@ public class ASTree {
       boolean first = true;
       cur_indent++;
       for (Iterator<Pair<ASTNode, ASTNode>> iter = values.iterator(); iter.hasNext();) {
-        if (first)
-          pyc_output.printf("\n");
-        else
-          pyc_output.printf(",\n");
+        print_comma(cur_indent, first, pyc_output);
 
         Pair<ASTNode, ASTNode> b = iter.next();
         start_line(cur_indent);
