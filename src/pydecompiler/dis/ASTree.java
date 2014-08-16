@@ -2319,8 +2319,10 @@ public class ASTree {
       boolean first = true;
       cur_indent++;
       for (Iterator<Pair<ASTNode, ASTNode>> iter = values.iterator(); iter.hasNext();) {
-        if (!first)
-          pyc_output.printf(", ");
+        if (first)
+          pyc_output.printf("\n");
+        else
+          pyc_output.printf(",\n");
 
         Pair<ASTNode, ASTNode> b = iter.next();
         start_line(cur_indent);
