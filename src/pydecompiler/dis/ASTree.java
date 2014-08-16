@@ -1222,12 +1222,10 @@ public class ASTree {
         else
           stack.push(new ASTName(code.getVarName(operand)));
         break;
-      case LOAD_GLOBAL_A:
-        stack.push(new ASTName(code.getName(operand)));
-        break;
       case LOAD_LOCALS:
         stack.push(new ASTNode(ASTNode.Type.NODE_LOCALS));
         break;
+      case LOAD_GLOBAL_A:
       case LOAD_NAME_A: {
         stack.push(new ASTName(code.getName(operand)));
 
@@ -1256,7 +1254,6 @@ public class ASTree {
           ASTBlock btop = blocks.top();
           btop.removeLast();
         }
-        ;
       }
         break;
       case MAKE_CLOSURE_A:
@@ -1693,7 +1690,7 @@ public class ASTree {
         }
       }
         break;
-      case STORE_FAST_A: {
+      case STORE_FAST_A: { // ref: case STORE_NAME_A
         if (unpack > 0) {
           ASTNode name;
 
@@ -1755,6 +1752,15 @@ public class ASTree {
             ASTImport import_ = (ASTImport) stack.top();
             import_.add_store(new ASTStore(value, name));
           } else {
+            LinkedList<ASTNode> nodes = curblock.nodes();
+            if (nodes.size() > 0) {
+              ASTNode b = (ASTNode) nodes.getLast();
+
+              if (// b.type() == ASTNode.Type.NODE_BLOCK &&
+              b instanceof ASTBlock && ((ASTBlock) b).blktype() == ASTBlock.BlkType.BLK_IF) {
+                curblock.removeLast();
+              }
+            }
             curblock.append(new ASTStore(value, name));
           }
         }
@@ -1863,6 +1869,16 @@ public class ASTree {
             ((ASTWithBlock) curblock).setExpr(value);
             ((ASTWithBlock) curblock).setVar(name);
           } else {
+            LinkedList<ASTNode> nodes = curblock.nodes();
+            if (nodes.size() > 0) {
+              ASTNode b = (ASTNode) nodes.getLast();
+
+              if (// b.type() == ASTNode.Type.NODE_BLOCK &&
+              b instanceof ASTBlock && ((ASTBlock) b).blktype() == ASTBlock.BlkType.BLK_IF) {
+                curblock.removeLast();
+              }
+            }
+
             curblock.append(new ASTStore(value, name));
           }
         }
