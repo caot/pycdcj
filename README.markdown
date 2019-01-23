@@ -1,6 +1,6 @@
 # pycdcj
 
-***A Python Byte-code Disassembler/Decompiler***
+***A Python Byte-code Disassembler / Decompiler ***
 
 It translates compiled Python byte-code back into Python source code.
 
